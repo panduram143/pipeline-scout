@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pipeline Scout - Final Interactive Dashboard</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; }
+        canvas { display: block; }
+        #constant-info {
+            position: absolute; top: 20px; left: 20px; width: 280px;
+            background: rgba(0, 15, 30, 0.9); color: white; padding: 15px;
+            border-left: 4px solid #00ffff; border-radius: 0 10px 10px 0;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5); backdrop-filter: blur(10px);
+            font-size: 13px; pointer-events: none; z-index: 10;
+        }
+        #info-popup {
+            position: absolute; top: 20px; right: 20px; width: 280px;
+            background: rgba(0, 10, 20, 0.95); color: white; padding: 20px;
+            border: 2px solid #00ffff; border-radius: 12px; display: none;
+            pointer-events: none; box-shadow: 0 0 25px rgba(0, 255, 255, 0.4);
+            z-index: 10;
+        }
+        .data-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; }
+        .label { color: #aaa; }
+        .value { color: #00ffff; font-weight: bold; }
+        .history-title { color: #ffcc00; font-size: 12px; margin-top: 10px; margin-bottom: 5px; text-transform: uppercase; }
+        .history-date { font-size: 11px; color: #ddd; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; margin-right: 4px; display: inline-block; }
+        h3 { margin: 0 0 12px 0; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+<div id="constant-info">
+    <h3 style="color:#ffcc00;">Network Layout Data</h3>
+    <div class="data-row"><span class="label">System Status:</span> <span class="value" style="color:#00ff00;">ACTIVE</span></div>
+    <div class="data-row"><span class="label">Top Pipe Depth:</span> <span class="value">1.5 Meters</span></div>
+    <div class="data-row"><span class="label">Lower Pipes Depth:</span> <span class="value">3.2 Meters</span></div>
+    <div class="data-row"><span class="label">Horizontal Gap:</span> <span class="value">3.0 Meters</span></div>
+    <div class="data-row"><span class="label">Vertical Clearance:</span> <span class="value">1.7 Meters</span></div>
+    <div class="data-row"><span class="label">Total Span:</span> <span class="value">3.4 Meters</span></div>
+</div>
+
+<div id="info-popup">
+    <h3 id="pipe-name"></h3>
+    <div id="pipe-data"></div>
+    <div class="history-title">Recent Service History</div>
+    <div id="service-history"></div>
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020205);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.toneMapping = THREE.ReinhardToneMapping;
+    renderer.toneMappingExposure = 2.0;
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 5));
+    const pointLight = new THREE.PointLight(0x00ffff, 2, 50);
+    camera.add(pointLight);
+    scene.add(camera);
+
+    const pipeDetails = {
+        "Parallel_Pipe_0": { 
+            title: "Argon (Pink)", pressure: "110 PSI", temp: "38°C", depth: "3.2m (B-Left)", status: "Stable",
+            history: ["12 Jan 2026", "05 Nov 2025", "20 Aug 2025"] 
+        },
+        "Parallel_Pipe_1": { 
+            title: "Helium (Blue)", pressure: "95 PSI", temp: "24°C", depth: "3.2m (B-Right)", status: "Stable",
+            history: ["15 Jan 2026", "10 Oct 2025", "12 Jul 2025"] 
+        },
+        "Parallel_Pipe_2": { 
+            title: "Neon (Yellow)", pressure: "145 PSI", temp: "52°C", depth: "1.5m (Top)", status: "Warning",
+            history: ["01 Feb 2026", "22 Dec 2025", "15 Sep 2025"] 
+        }
+    };
+
+    const loader = new GLTFLoader();
+    loader.load('pipes.glb', function (gltf) {
+        scene.add(gltf.scene);
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        camera.position.set(center.x, center.y + 5, center.z + (maxDim * 1.2));
+        controls.target.copy(center);
+        controls.update();
+    });
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const popup = document.getElementById('info-popup');
+
+    function handleClick(event) {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(scene.children, true);
+
+        if (intersects.length > 0) {
+            let obj = intersects[0].object;
+            while (obj && !pipeDetails[obj.name]) { obj = obj.parent; }
+            if (obj && pipeDetails[obj.name]) {
+                const info = pipeDetails[obj.name];
+                document.getElementById('pipe-name').innerText = info.title;
+                document.getElementById('pipe-data').innerHTML = `
+                    <div class="data-row"><span>Pressure:</span> <span class="value">${info.pressure}</span></div>
+                    <div class="data-row"><span>Temperature:</span> <span class="value">${info.temp}</span></div>
+                    <div class="data-row"><span>Depth:</span> <span class="value">${info.depth}</span></div>
+                    <div class="data-row"><span>Condition:</span> <span style="color:${info.status==='Warning'?'#ff3333':'#00ff00'}">${info.status}</span></div>
+                `;
+                document.getElementById('service-history').innerHTML = info.history.map(date => `<span class="history-date">${date}</span>`).join('');
+                popup.style.display = 'block';
+            }
+        } else { popup.style.display = 'none'; }
+    }
+
+    window.addEventListener('mousedown', handleClick);
+    function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
