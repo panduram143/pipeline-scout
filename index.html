@@ -2,30 +2,30 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pipeline Scout - VR Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pipeline Scout - Ultimate AR Dashboard</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; }
-        canvas { display: block; }
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; }
         #constant-info {
-            position: absolute; top: 20px; left: 20px; width: 280px;
-            background: rgba(0, 15, 30, 0.9); color: white; padding: 15px;
-            border-left: 4px solid #00ffff; border-radius: 0 10px 10px 0;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5); backdrop-filter: blur(10px);
-            font-size: 13px; pointer-events: none; z-index: 10;
+            position: absolute; top: 10px; left: 10px; width: 250px;
+            background: rgba(0, 15, 30, 0.85); color: white; padding: 12px;
+            border-left: 4px solid #00ffff; border-radius: 0 8px 8px 0;
+            font-size: 12px; z-index: 100; pointer-events: none;
+            backdrop-filter: blur(5px);
         }
         #info-popup {
-            position: absolute; top: 20px; right: 20px; width: 280px;
-            background: rgba(0, 10, 20, 0.95); color: white; padding: 20px;
-            border: 2px solid #00ffff; border-radius: 12px; display: none;
-            pointer-events: none; box-shadow: 0 0 25px rgba(0, 255, 255, 0.4);
-            z-index: 10;
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 85%; background: rgba(0, 10, 20, 0.95); color: white; padding: 15px;
+            border: 2px solid #00ffff; border-radius: 15px; display: none;
+            z-index: 100; box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
         }
-        .data-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; }
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+        .data-item { font-size: 11px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 2px; }
         .label { color: #aaa; }
-        .value { color: #00ffff; font-weight: bold; }
-        .history-title { color: #ffcc00; font-size: 12px; margin-top: 10px; margin-bottom: 5px; text-transform: uppercase; }
-        .history-date { font-size: 11px; color: #ddd; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; margin-right: 4px; display: inline-block; }
-        h3 { margin: 0 0 12px 0; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
+        .value { color: #00ffff; font-weight: bold; float: right; }
+        .history-sec { margin-top: 10px; border-top: 1px solid #444; padding-top: 8px; }
+        .h-date { font-size: 10px; background: #222; padding: 2px 5px; border-radius: 3px; margin-right: 3px; color: #ffcc00; }
+        h3 { margin: 0 0 8px 0; font-size: 14px; text-transform: uppercase; color: #ffcc00; }
     </style>
     <script type="importmap">
         {
@@ -39,85 +39,126 @@
 <body>
 
 <div id="constant-info">
-    <h3 style="color:#ffcc00;">Network Layout Data</h3>
-    <div class="data-row"><span class="label">System Status:</span> <span class="value" style="color:#00ff00;">ACTIVE</span></div>
-    <div class="data-row"><span class="label">Top Pipe Depth:</span> <span class="value">1.5 Meters</span></div>
-    <div class="data-row"><span class="label">Lower Pipes Depth:</span> <span class="value">3.2 Meters</span></div>
-    <div class="data-row"><span class="label">Horizontal Gap:</span> <span class="value">3.0 Meters</span></div>
+    <h3>Network Layout</h3>
+    <div style="display:flex; justify-content:space-between;"><span>Top Depth:</span> <b>1.5m</b></div>
+    <div style="display:flex; justify-content:space-between;"><span>Lower Depth:</span> <b>3.2m</b></div>
+    <div style="display:flex; justify-content:space-between;"><span>Gap:</span> <b>3.0m</b></div>
 </div>
 
 <div id="info-popup">
-    <h3 id="pipe-name"></h3>
-    <div id="pipe-data"></div>
-    <div class="history-title">Recent Service History</div>
-    <div id="service-history"></div>
+    <h3 id="p-name"></h3>
+    <div class="data-grid" id="p-main-data"></div>
+    <div class="history-sec">
+        <div style="font-size:10px; margin-bottom:4px; color:#aaa;">LAST SERVICE DATES:</div>
+        <div id="p-history"></div>
+    </div>
 </div>
 
 <script type="module">
     import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { ARButton } from 'three/addons/webxr/ARButton.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-    import { VRButton } from 'three/addons/webxr/VRButton.js';
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x020205);
-
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.xr.enabled = true;
-    document.body.appendChild(renderer.domElement);
-    document.body.appendChild(VRButton.createButton(renderer));
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 5));
+    let scene, camera, renderer, reticle, model;
+    let hitTestSource = null;
+    let hitTestSourceRequested = false;
 
     const pipeDetails = {
-        "Parallel_Pipe_0": { title: "Argon (Yellow)", pressure: "110 PSI", temp: "38°C", depth: "3.2m", status: "Stable", history: ["12 Jan 2026", "05 Nov 2025"] },
-        "Parallel_Pipe_1": { title: "Helium (Blue)", pressure: "95 PSI", temp: "24°C", depth: "3.2m", status: "Stable", history: ["15 Jan 2026", "10 Oct 2025"] },
-        "Parallel_Pipe_2": { title: "Neon (Pink)", pressure: "145 PSI", temp: "52°C", depth: "1.5m", status: "Warning", history: ["01 Feb 2026", "22 Dec 2025"] }
+        "Parallel_Pipe_0": { name: "Argon (Yellow)", dia: "250mm", press: "110 PSI", temp: "38°C", depth: "3.2m", history: ["12/01/26", "05/11/25", "20/08/25"] },
+        "Parallel_Pipe_1": { name: "Helium (Blue)", dia: "180mm", press: "95 PSI", temp: "24°C", depth: "3.2m", history: ["15/01/26", "10/10/25", "12/07/25"] },
+        "Parallel_Pipe_2": { name: "Neon (Pink)", dia: "320mm", press: "145 PSI", temp: "52°C", depth: "1.5m", history: ["01/02/26", "22/12/25", "15/09/25"] }
     };
 
-    const loader = new GLTFLoader();
-    loader.load('pipes.glb', function (gltf) {
-        scene.add(gltf.scene);
-        const box = new THREE.Box3().setFromObject(gltf.scene);
-        const center = box.getCenter(new THREE.Vector3());
-        camera.position.set(center.x, center.y + 5, center.z + 15);
-        controls.target.copy(center);
-    });
+    init();
+    animate();
 
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-    const popup = document.getElementById('info-popup');
+    function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+        
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
 
-    function handleClick(event) {
-        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects(scene.children, true);
-        if (intersects.length > 0) {
-            let obj = intersects[0].object;
-            while (obj && !pipeDetails[obj.name]) { obj = obj.parent; }
-            if (obj && pipeDetails[obj.name]) {
-                const info = pipeDetails[obj.name];
-                document.getElementById('pipe-name').innerText = info.title;
-                document.getElementById('pipe-data').innerHTML = `
-                    <div class="data-row"><span>Pressure:</span> <span class="value">${info.pressure}</span></div>
-                    <div class="data-row"><span>Temperature:</span> <span class="value">${info.temp}</span></div>
-                `;
-                document.getElementById('service-history').innerHTML = info.history.map(date => `<span class="history-date">${date}</span>`).join('');
-                popup.style.display = 'block';
+        document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+
+        scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3));
+
+        const loader = new GLTFLoader();
+        loader.load('pipes.glb', (gltf) => {
+            model = gltf.scene;
+            model.visible = false;
+            scene.add(model);
+        });
+
+        reticle = new THREE.Mesh(
+            new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2),
+            new THREE.MeshBasicMaterial({ color: 0x00ffff })
+        );
+        reticle.matrixAutoUpdate = false;
+        reticle.visible = false;
+        scene.add(reticle);
+
+        const controller = renderer.xr.getController(0);
+        controller.addEventListener('select', () => {
+            if (reticle.visible && model) {
+                model.position.setFromMatrixPosition(reticle.matrix);
+                model.visible = true;
+                model.scale.set(0.2, 0.2, 0.2);
             }
-        } else { popup.style.display = 'none'; }
+        });
+        scene.add(controller);
+
+        window.addEventListener('mousedown', (e) => {
+            if (!model || !model.visible) return;
+            const mouse = new THREE.Vector2((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(model.children, true);
+            if (intersects.length > 0) {
+                let obj = intersects[0].object;
+                while(obj && !pipeDetails[obj.name]) { obj = obj.parent; }
+                if (obj && pipeDetails[obj.name]) showData(pipeDetails[obj.name]);
+            }
+        });
     }
 
-    window.addEventListener('mousedown', handleClick);
-    renderer.setAnimationLoop( function () {
-        controls.update();
-        renderer.render( scene, camera );
-    });
+    function showData(data) {
+        document.getElementById('info-popup').style.display = 'block';
+        document.getElementById('p-name').innerText = data.name;
+        document.getElementById('p-main-data').innerHTML = `
+            <div class="data-item"><span class="label">Dia:</span><span class="value">${data.dia}</span></div>
+            <div class="data-item"><span class="label">Press:</span><span class="value">${data.press}</span></div>
+            <div class="data-item"><span class="label">Temp:</span><span class="value">${data.temp}</span></div>
+            <div class="data-item"><span class="label">Depth:</span><span class="value">${data.depth}</span></div>
+        `;
+        document.getElementById('p-history').innerHTML = data.history.map(d => `<span class="h-date">${d}</span>`).join('');
+    }
+
+    function animate() { renderer.setAnimationLoop(render); }
+
+    function render(timestamp, frame) {
+        if (frame) {
+            const referenceSpace = renderer.xr.getReferenceSpace();
+            const session = renderer.xr.getSession();
+            if (!hitTestSourceRequested) {
+                session.requestReferenceSpace('viewer').then(ref => {
+                    session.requestHitTestSource({ space: ref }).then(src => hitTestSource = src);
+                });
+                hitTestSourceRequested = true;
+            }
+            if (hitTestSource) {
+                const results = frame.getHitTestResults(hitTestSource);
+                if (results.length) {
+                    reticle.visible = true;
+                    reticle.matrix.fromArray(results[0].getPose(referenceSpace).transform.matrix);
+                } else { reticle.visible = false; }
+            }
+        }
+        renderer.render(scene, camera);
+    }
 </script>
 </body>
 </html>
