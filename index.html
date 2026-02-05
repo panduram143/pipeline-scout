@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Pipeline Scout - Ultimate AR Dashboard</title>
+    <title>Pipeline Scout - Master AR</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; }
         #constant-info {
@@ -42,7 +42,7 @@
     <h3>Network Layout</h3>
     <div style="display:flex; justify-content:space-between;"><span>Top Depth:</span> <b>1.5m</b></div>
     <div style="display:flex; justify-content:space-between;"><span>Lower Depth:</span> <b>3.2m</b></div>
-    <div style="display:flex; justify-content:space-between;"><span>Gap:</span> <b>3.0m</b></div>
+    <div style="display:flex; justify-content:space-between;"><span>Status:</span> <b style="color:#00ff00;">AR ACTIVE</b></div>
 </div>
 
 <div id="info-popup">
@@ -79,10 +79,16 @@
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000000, 0); 
         renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+        const arButton = ARButton.createButton(renderer, { 
+            requiredFeatures: ['hit-test'],
+            optionalFeatures: ['dom-overlay'],
+            domOverlay: { root: document.body }
+        });
+        document.body.appendChild(arButton);
 
         scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3));
 
@@ -106,14 +112,17 @@
             if (reticle.visible && model) {
                 model.position.setFromMatrixPosition(reticle.matrix);
                 model.visible = true;
-                model.scale.set(0.2, 0.2, 0.2);
+                model.scale.set(0.15, 0.15, 0.15); 
             }
         });
         scene.add(controller);
 
-        window.addEventListener('mousedown', (e) => {
+        window.addEventListener('touchstart', (e) => {
             if (!model || !model.visible) return;
-            const mouse = new THREE.Vector2((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
+            const mouse = new THREE.Vector2(
+                (e.touches[0].clientX / window.innerWidth) * 2 - 1,
+                -(e.touches[0].clientY / window.innerHeight) * 2 + 1
+            );
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObjects(model.children, true);
@@ -129,8 +138,8 @@
         document.getElementById('info-popup').style.display = 'block';
         document.getElementById('p-name').innerText = data.name;
         document.getElementById('p-main-data').innerHTML = `
-            <div class="data-item"><span class="label">Dia:</span><span class="value">${data.dia}</span></div>
-            <div class="data-item"><span class="label">Press:</span><span class="value">${data.press}</span></div>
+            <div class="data-item"><span class="label">Diameter:</span><span class="value">${data.dia}</span></div>
+            <div class="data-item"><span class="label">Pressure:</span><span class="value">${data.press}</span></div>
             <div class="data-item"><span class="label">Temp:</span><span class="value">${data.temp}</span></div>
             <div class="data-item"><span class="label">Depth:</span><span class="value">${data.depth}</span></div>
         `;
