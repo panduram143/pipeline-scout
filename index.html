@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pipeline Scout - Final Interactive Dashboard</title>
+    <title>Pipeline Scout - VR Dashboard</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; }
         canvas { display: block; }
@@ -44,8 +44,6 @@
     <div class="data-row"><span class="label">Top Pipe Depth:</span> <span class="value">1.5 Meters</span></div>
     <div class="data-row"><span class="label">Lower Pipes Depth:</span> <span class="value">3.2 Meters</span></div>
     <div class="data-row"><span class="label">Horizontal Gap:</span> <span class="value">3.0 Meters</span></div>
-    <div class="data-row"><span class="label">Vertical Clearance:</span> <span class="value">1.7 Meters</span></div>
-    <div class="data-row"><span class="label">Total Span:</span> <span class="value">3.4 Meters</span></div>
 </div>
 
 <div id="info-popup">
@@ -59,6 +57,7 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { VRButton } from 'three/addons/webxr/VRButton.js';
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020205);
@@ -67,31 +66,17 @@
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.toneMapping = THREE.ReinhardToneMapping;
-    renderer.toneMappingExposure = 2.0;
+    renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
+    document.body.appendChild(VRButton.createButton(renderer));
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 5));
-    const pointLight = new THREE.PointLight(0x00ffff, 2, 50);
-    camera.add(pointLight);
-    scene.add(camera);
 
     const pipeDetails = {
-        "Parallel_Pipe_0": { 
-            title: "Argon (Pink)", pressure: "110 PSI", temp: "38°C", depth: "3.2m (B-Left)", status: "Stable",
-            history: ["12 Jan 2026", "05 Nov 2025", "20 Aug 2025"] 
-        },
-        "Parallel_Pipe_1": { 
-            title: "Helium (Blue)", pressure: "95 PSI", temp: "24°C", depth: "3.2m (B-Right)", status: "Stable",
-            history: ["15 Jan 2026", "10 Oct 2025", "12 Jul 2025"] 
-        },
-        "Parallel_Pipe_2": { 
-            title: "Neon (Yellow)", pressure: "145 PSI", temp: "52°C", depth: "1.5m (Top)", status: "Warning",
-            history: ["01 Feb 2026", "22 Dec 2025", "15 Sep 2025"] 
-        }
+        "Parallel_Pipe_0": { title: "Argon (Yellow)", pressure: "110 PSI", temp: "38°C", depth: "3.2m", status: "Stable", history: ["12 Jan 2026", "05 Nov 2025"] },
+        "Parallel_Pipe_1": { title: "Helium (Blue)", pressure: "95 PSI", temp: "24°C", depth: "3.2m", status: "Stable", history: ["15 Jan 2026", "10 Oct 2025"] },
+        "Parallel_Pipe_2": { title: "Neon (Pink)", pressure: "145 PSI", temp: "52°C", depth: "1.5m", status: "Warning", history: ["01 Feb 2026", "22 Dec 2025"] }
     };
 
     const loader = new GLTFLoader();
@@ -99,11 +84,8 @@
         scene.add(gltf.scene);
         const box = new THREE.Box3().setFromObject(gltf.scene);
         const center = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
-        camera.position.set(center.x, center.y + 5, center.z + (maxDim * 1.2));
+        camera.position.set(center.x, center.y + 5, center.z + 15);
         controls.target.copy(center);
-        controls.update();
     });
 
     const raycaster = new THREE.Raycaster();
@@ -115,7 +97,6 @@
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects(scene.children, true);
-
         if (intersects.length > 0) {
             let obj = intersects[0].object;
             while (obj && !pipeDetails[obj.name]) { obj = obj.parent; }
@@ -125,8 +106,6 @@
                 document.getElementById('pipe-data').innerHTML = `
                     <div class="data-row"><span>Pressure:</span> <span class="value">${info.pressure}</span></div>
                     <div class="data-row"><span>Temperature:</span> <span class="value">${info.temp}</span></div>
-                    <div class="data-row"><span>Depth:</span> <span class="value">${info.depth}</span></div>
-                    <div class="data-row"><span>Condition:</span> <span style="color:${info.status==='Warning'?'#ff3333':'#00ff00'}">${info.status}</span></div>
                 `;
                 document.getElementById('service-history').innerHTML = info.history.map(date => `<span class="history-date">${date}</span>`).join('');
                 popup.style.display = 'block';
@@ -135,13 +114,9 @@
     }
 
     window.addEventListener('mousedown', handleClick);
-    function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
-    animate();
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setAnimationLoop( function () {
+        controls.update();
+        renderer.render( scene, camera );
     });
 </script>
 </body>
